@@ -172,7 +172,13 @@ const Index = () => {
               </Button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <FeatureLongWeekends />
+              <div className="relative">
+                <img 
+                  src="/src/assets/holiday-calendar.png" 
+                  alt="2025 Long Weekends & Holiday Calendar"
+                  className="w-full h-auto rounded-xl md:rounded-2xl shadow-md"
+                />
+              </div>
               <div className="md:col-span-2 bg-gray-50 rounded-xl md:rounded-2xl p-3 sm:p-4 md:p-6 shadow-md">
                 <h3 className="text-base sm:text-lg md:text-xl font-bold mb-2 sm:mb-3 md:mb-4">Upcoming Long Weekends</h3>
                 <ScrollArea className="max-h-[350px] pr-4 -mr-4">
