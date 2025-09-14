@@ -91,6 +91,7 @@ export type Database = {
           created_at: string
           group_id: string
           id: string
+          media_url: string | null
           message: string
           user_id: string
         }
@@ -98,6 +99,7 @@ export type Database = {
           created_at?: string
           group_id: string
           id?: string
+          media_url?: string | null
           message: string
           user_id: string
         }
@@ -105,6 +107,7 @@ export type Database = {
           created_at?: string
           group_id?: string
           id?: string
+          media_url?: string | null
           message?: string
           user_id?: string
         }
