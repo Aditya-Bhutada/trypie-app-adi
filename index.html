@@ -1,0 +1,33 @@
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.ico" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Trypie - AI-Powered Travel Planning</title>
+    <!-- Google Maps API Script -->
+    <script>
+      function initGoogleMapsAPI() {
+        console.log("Google Maps API initialized");
+      }
+    </script>
+    <script async
+      src="https://maps.googleapis.com/maps/api/js?key=%VITE_GOOGLE_MAPS_API_KEY%&libraries=places&callback=initGoogleMapsAPI">
+    </script>
+    <!-- Prevent auto-scrolling to bottom -->
+    <style>
+      html, body {
+        scroll-behavior: auto !important;
+      }
+      body {
+        overflow-anchor: none;
+      }
+    </style>
+  </head>
+  <body class="min-h-screen font-sans antialiased">
+    <div id="root"></div>
+    <script src="https://cdn.gpteng.co/gptengineer.js" type="module"></script>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
