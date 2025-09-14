@@ -1,17 +1,1 @@
-
 project_id = "dfyxmrskfmzufjqaanjo"
-[api]
-enabled = true
-[db]
-enabled = true
-[realtime]
-enabled = true
-[storage]
-enabled = true
-[auth]
-enabled = true
-[functions]
-[functions.chat-with-gemini]
-verify_jwt = false
-[functions.generate-itinerary-gemini]
-verify_jwt = false
