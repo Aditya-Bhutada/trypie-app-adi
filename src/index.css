@@ -209,20 +209,9 @@
     text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
   }
 
-  /* Mobile scrolling utilities */
-  .mobile-scroll {
-    overflow-y: auto;
-    height: 100%;
-    -webkit-overflow-scrolling: touch;
-  }
 }
 
-/* Specific styles for the 3D scene */
-canvas {
+/* Only restrict touch on canvas elements when actively interacting with 3D */
+canvas.interactive-3d {
   touch-action: none;
-}
-
-/* Ensure sections don't have fixed heights */
-section {
-  min-height: auto;
 }
