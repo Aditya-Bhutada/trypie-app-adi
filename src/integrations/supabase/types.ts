@@ -257,6 +257,44 @@ export type Database = {
           },
         ]
       }
+      itineraries: {
+        Row: {
+          created_at: string | null
+          destination: string
+          id: string
+          likes: number | null
+          title: string
+          user_id: string | null
+          views: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          destination: string
+          id?: string
+          likes?: number | null
+          title: string
+          user_id?: string | null
+          views?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          destination?: string
+          id?: string
+          likes?: number | null
+          title?: string
+          user_id?: string | null
+          views?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "itineraries_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -528,6 +566,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      users: {
+        Row: {
+          created_at: string | null
+          email: string
+          id: string
+          name: string
+          password: string
+        }
+        Insert: {
+          created_at?: string | null
+          email: string
+          id?: string
+          name: string
+          password: string
+        }
+        Update: {
+          created_at?: string | null
+          email?: string
+          id?: string
+          name?: string
+          password?: string
+        }
+        Relationships: []
       }
     }
     Views: {
