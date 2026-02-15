@@ -11,8 +11,8 @@ import { Badge } from "@/components/ui/badge";
 import { Link } from "react-router-dom";
 import { TravelGroup } from "@/types/travel-group-types";
 import { MapPin, Calendar, Users, Globe } from "lucide-react";
-import { MobileScrollFix } from "@/hooks/use-mobile-fixes";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import holidayCalendar from "@/assets/holiday-calendar.png";
 
 const Index = () => {
   // Sample data for the review cards
@@ -125,7 +125,6 @@ const Index = () => {
 
   return (
     <div className="min-h-screen flex flex-col bg-background overflow-x-hidden">
-      <MobileScrollFix />
       <Navbar />
       <main className="flex-grow">
         {/* Hero Section with Carousel */}
@@ -174,7 +173,7 @@ const Index = () => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="relative">
                 <img 
-                  src="/src/assets/holiday-calendar.png" 
+                  src={holidayCalendar} 
                   alt="2025 Long Weekends & Holiday Calendar"
                   className="w-full h-auto rounded-xl md:rounded-2xl shadow-md"
                 />
