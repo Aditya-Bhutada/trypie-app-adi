@@ -127,7 +127,7 @@ const Index = () => {
     <div className="min-h-screen flex flex-col bg-background overflow-x-hidden">
       <MobileScrollFix />
       <Navbar />
-      <main className="flex-grow overflow-y-auto -webkit-overflow-scrolling-touch">
+      <main className="flex-grow">
         {/* Hero Section with Carousel */}
         <HeroSection />
 

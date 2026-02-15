@@ -26,13 +26,15 @@ export async function acceptGroupInvitation(token: string): Promise<{
       };
     }
 
-    // Get invitation by token
-    const { data: invitation, error: inviteError } = await supabase.rpc(
-      'get_group_invitation_by_token',
-      { p_token: token }
-    );
+    // Look up invitation by token in group_invitations table
+    const { data: invitation, error: inviteError } = await supabase
+      .from('group_invitations')
+      .select('*')
+      .eq('id', token)
+      .eq('status', 'pending')
+      .maybeSingle();
 
-    if (inviteError || !invitation || invitation.length === 0) {
+    if (inviteError || !invitation) {
       console.error("Error fetching invitation:", inviteError);
       return {
         success: false,
@@ -40,22 +42,17 @@ export async function acceptGroupInvitation(token: string): Promise<{
       };
     }
 
-    const inviteData = invitation[0];
-
-    // Only check if invitation has expired, but allow it to be reused
-    // Remove the check for status === 'pending'
-    if (inviteData.expires_at && new Date(inviteData.expires_at) < new Date()) {
-      return {
-        success: false,
-        message: "This invitation has expired"
-      };
-    }
-
     // Join the group
-    await joinGroup(inviteData.group_id);
+    await joinGroup(invitation.group_id);
+
+    // Update invitation status
+    await supabase
+      .from('group_invitations')
+      .update({ status: 'accepted' })
+      .eq('id', token);
 
     // Get group details
-    const group = await fetchGroupById(inviteData.group_id);
+    const group = await fetchGroupById(invitation.group_id);
 
     return {
       success: true,
@@ -84,38 +81,29 @@ export async function validateInvitationToken(token: string): Promise<{
   }
 
   try {
-    // Get invitation by token
-    const { data: invitation, error: inviteError } = await supabase.rpc(
-      'get_group_invitation_by_token',
-      { p_token: token }
-    );
+    const { data: invitation, error: inviteError } = await supabase
+      .from('group_invitations')
+      .select('*')
+      .eq('id', token)
+      .eq('status', 'pending')
+      .maybeSingle();
 
-    if (inviteError || !invitation || invitation.length === 0) {
+    if (inviteError || !invitation) {
       return { isValid: false, message: "Invalid or expired invitation" };
-    }
-
-    const inviteData = invitation[0];
-    
-    // Only check if the invitation has expired, not if it has been used before
-    if (inviteData.expires_at && new Date(inviteData.expires_at) < new Date()) {
-      return { 
-        isValid: false, 
-        message: "This invitation has expired"
-      };
     }
 
     // Get group details
     const { data: groupData } = await supabase
       .from('travel_groups')
       .select('title, id')
-      .eq('id', inviteData.group_id)
+      .eq('id', invitation.group_id)
       .single();
 
     // Get inviter details
     const { data: inviterData } = await supabase
       .from('profiles')
       .select('full_name')
-      .eq('id', inviteData.invited_by)
+      .eq('id', invitation.invited_by)
       .single();
 
     return {
