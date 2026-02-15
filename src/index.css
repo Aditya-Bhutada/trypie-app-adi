@@ -93,20 +93,14 @@
   }
 
   html {
-    @apply overflow-x-hidden overscroll-none;
+    @apply overflow-x-hidden;
     scroll-behavior: smooth;
-    scroll-padding-top: 0;
-    height: 100%;
+    height: auto;
   }
   
   body {
-    @apply bg-background text-foreground font-sans min-h-screen overflow-x-hidden overscroll-none;
-    position: relative;
+    @apply bg-background text-foreground font-sans min-h-screen overflow-x-hidden;
     -webkit-overflow-scrolling: touch;
-    touch-action: pan-y;
-    /* Reset initial scroll position */
-    scroll-top: 0;
-    scroll-behavior: auto;
   }
 
   #root {
@@ -228,18 +222,7 @@ canvas {
   touch-action: none;
 }
 
-/* Ensure content is scrollable on mobile */
-main {
-  @apply flex-grow overflow-y-auto;
-  -webkit-overflow-scrolling: touch;
-}
-
-/* Remove fixed heights that might cause scrolling issues */
+/* Ensure sections don't have fixed heights */
 section {
   min-height: auto;
-}
-
-/* Force scrolling to always start at the top */
-html, body {
-  scroll-top: 0 !important;
 }
