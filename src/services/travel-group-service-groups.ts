@@ -166,19 +166,7 @@ export async function fetchMyGroups(): Promise<TravelGroup[]> {
   
   console.log("Fetching groups for user:", userId);
   
-  // First, check for groups created by the user
-  const { data: createdGroups, error: createdGroupsError } = await supabase
-    .from('travel_groups')
-    .select('*')
-    .eq('creator_id', userId);
-  
-  if (createdGroupsError) {
-    console.error("Error fetching created groups:", createdGroupsError);
-  } else {
-    console.log("Groups created by user:", createdGroups || []);
-  }
-  
-  // Get all groups the user is a member of
+  // Get groups the user is a member of
   const { data: userGroups, error: userGroupsError } = await supabase
     .from('group_members')
     .select('group_id')
@@ -186,24 +174,34 @@ export async function fetchMyGroups(): Promise<TravelGroup[]> {
 
   if (userGroupsError) {
     console.error("Error fetching user groups:", userGroupsError);
-    throw userGroupsError;
   }
 
-  console.log("User group memberships:", userGroups || []);
+  const memberGroupIds = (userGroups || []).map(ug => ug.group_id);
   
-  if (!userGroups || userGroups.length === 0) {
-    console.log("User is not a member of any groups");
+  // Also get groups created by the user (in case they aren't in group_members yet)
+  const { data: createdGroups, error: createdGroupsError } = await supabase
+    .from('travel_groups')
+    .select('*')
+    .eq('creator_id', userId);
+  
+  if (createdGroupsError) {
+    console.error("Error fetching created groups:", createdGroupsError);
+  }
+
+  // Combine: groups from membership + groups created by user
+  const createdGroupIds = (createdGroups || []).map(g => g.id);
+  const allGroupIds = [...new Set([...memberGroupIds, ...createdGroupIds])];
+  
+  if (allGroupIds.length === 0) {
+    console.log("User has no groups");
     return [];
   }
 
-  const groupIds = userGroups.map(ug => ug.group_id);
-  console.log("Found group IDs:", groupIds);
-
-  // Fetch the groups with their info
+  // Fetch group details
   const { data: groups, error } = await supabase
     .from('travel_groups')
     .select('*')
-    .in('id', groupIds);
+    .in('id', allGroupIds);
 
   if (error) {
     console.error("Error fetching travel groups:", error);
@@ -211,14 +209,26 @@ export async function fetchMyGroups(): Promise<TravelGroup[]> {
   }
 
   if (!groups || groups.length === 0) {
-    console.log("No group data found");
     return [];
   }
 
-  // Fetch user counts for each group
+  // Ensure the user is a member of each group they created (auto-fix past RLS failures)
+  for (const group of groups) {
+    if (group.creator_id === userId && !memberGroupIds.includes(group.id)) {
+      try {
+        await supabase.from('group_members').insert({
+          group_id: group.id,
+          user_id: userId,
+          role: 'organizer'
+        });
+        console.log("Auto-joined creator to group:", group.id);
+      } catch (e) {
+        console.error("Failed to auto-join creator:", e);
+      }
+    }
+  }
+
   const groupsWithCounts = await Promise.all(groups.map(async (group) => {
-    console.log("Processing group:", group.id);
-    
     const { count, error: countError } = await supabase
       .from('group_members')
       .select('*', { count: 'exact', head: true })
@@ -240,7 +250,7 @@ export async function fetchMyGroups(): Promise<TravelGroup[]> {
     
     return {
       ...group,
-      memberCount: count || 0,
+      memberCount: count || 1,
       organizer: organizerData ? mapProfile(organizerData) : undefined
     } as TravelGroup;
   }));

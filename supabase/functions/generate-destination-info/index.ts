@@ -1,8 +1,7 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 
-const geminiApiKey = Deno.env.get('GEMINI_API_KEY');
+const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
 const googleMapsApiKey = 'AIzaSyAWotZP39tG3GrmpLsu9OX2xdcJ_pYZ1QA';
 
 const corsHeaders = {
@@ -11,7 +10,6 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -26,41 +24,34 @@ serve(async (req) => {
       );
     }
 
+    if (!LOVABLE_API_KEY) {
+      throw new Error("LOVABLE_API_KEY not configured");
+    }
+
     console.log(`Generating information about ${destination}`);
     
-    // Get additional location information from Google Places API if available
-    let enhancedDestInfo = destination;
-    let placeImages = [];
-    
+    // Get Google Places images
+    let placeImages: string[] = [];
     if (googleMapsApiKey) {
       try {
         const encodedDestination = encodeURIComponent(destination);
         const response = await fetch(
           `https://maps.googleapis.com/maps/api/place/findplacefromtext/json?input=${encodedDestination}&inputtype=textquery&fields=formatted_address,geometry,name,place_id,photos&key=${googleMapsApiKey}`
         );
-        
         const placeData = await response.json();
         
-        if (placeData.candidates && placeData.candidates.length > 0) {
-          const placeId = placeData.candidates[0].place_id;
+        if (placeData.candidates?.[0]?.place_id) {
           const detailsResponse = await fetch(
-            `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=formatted_address,name,geometry,photos,url&key=${googleMapsApiKey}`
+            `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeData.candidates[0].place_id}&fields=photos&key=${googleMapsApiKey}`
           );
-          
           const detailsData = await detailsResponse.json();
           
-          if (detailsData.result?.photos && detailsData.result.photos.length > 0) {
-            // Get up to 3 photo references
-            const photoRefs = detailsData.result.photos
+          if (detailsData.result?.photos) {
+            placeImages = detailsData.result.photos
               .slice(0, 3)
-              .map(photo => photo.photo_reference);
-              
-            // Create photo URLs
-            placeImages = photoRefs.map(ref => 
-              `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photoreference=${ref}&key=${googleMapsApiKey}`
-            );
-            
-            console.log(`Found ${placeImages.length} place photos for ${destination}`);
+              .map((photo: any) => 
+                `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photoreference=${photo.photo_reference}&key=${googleMapsApiKey}`
+              );
           }
         }
       } catch (error) {
@@ -68,123 +59,66 @@ serve(async (req) => {
       }
     }
 
-    const prompt = `
-      Provide detailed and inspiring information about ${destination} as a travel destination.
-      
-      Format your response with these clear sections:
-      
-      1. Description: A detailed paragraph about what makes ${destination} special, focusing on its atmosphere, unique attractions, and cultural significance.
-      
-      2. Highlights: List 5-8 must-see attractions or experiences in ${destination}, with a brief description for each one.
-      
-      3. Best Time to Visit: Information about the optimal seasons to visit ${destination} and why these times are recommended.
-      
-      4. Local Cuisine: Describe 3-5 local dishes or food experiences that visitors should try, with details about what makes them special.
-      
-      5. Travel Tips: Provide 4-6 practical recommendations for visitors (transportation, etiquette, packing advice, etc.)
-      
-      Make the information accurate, engaging, and useful for someone planning a trip to ${destination}.
-      
-      Format your output as JSON with these keys:
-      {
-        "name": "Full name of the destination",
-        "description": "Your detailed description paragraph",
-        "highlights": [
-          {"name": "Highlight 1 Name", "description": "Brief description"},
-          {"name": "Highlight 2 Name", "description": "Brief description"},
-          ...
-        ],
-        "bestTimeToVisit": "Your season recommendations",
-        "localCuisine": [
-          {"dish": "Dish name 1", "description": "Brief description"},
-          {"dish": "Dish name 2", "description": "Brief description"},
-          ...
-        ],
-        "travelTips": [
-          "Tip 1",
-          "Tip 2",
-          ...
-        ],
-        "images": ["image1.jpg", "image2.jpg"]
-      }
-    `;
+    const prompt = `Provide detailed information about ${destination} as a travel destination.
+Format your output as JSON with these keys:
+{
+  "name": "Full name of the destination",
+  "description": "Detailed description paragraph",
+  "highlights": [{"name": "Name", "description": "Brief description"}],
+  "bestTimeToVisit": "Season recommendations",
+  "localCuisine": [{"dish": "Dish name", "description": "Brief description"}],
+  "travelTips": ["Tip 1", "Tip 2"],
+  "images": []
+}
+Include 5-8 highlights, 3-5 dishes, and 4-6 tips. Return ONLY valid JSON, no markdown.`;
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent?key=${geminiApiKey}`, {
+    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
       },
       body: JSON.stringify({
-        contents: [{ role: "user", parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 4096,
-          responseFormat: 'JSON'
-        }
+        model: 'google/gemini-2.5-flash',
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.7,
+        max_tokens: 4096,
       })
     });
 
     const data = await response.json();
-    console.log("Received response from Gemini API");
     
-    // Extract and parse the JSON response
-    let generatedText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    if (!response.ok) {
+      throw new Error(`AI Gateway error: ${data.error?.message || "Unknown error"}`);
+    }
+
+    let generatedText = data.choices?.[0]?.message?.content || '';
     
-    // Clean and parse the JSON
-    const jsonMatch = generatedText.match(/```json\n([\s\S]*?)\n```/) || 
-                      generatedText.match(/```\n([\s\S]*?)\n```/) || 
-                      [null, generatedText];
-    
-    let parsedJson = jsonMatch[1];
-    
-    // Further cleaning of potential invalid characters
-    parsedJson = parsedJson.replace(/^\s*```.*\n/, '').replace(/\n\s*```\s*$/, '');
-    
+    // Clean JSON from markdown fences
+    generatedText = generatedText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+
     let destinationData;
     try {
-      destinationData = JSON.parse(parsedJson);
-      
-      // Use Google Places images if available, otherwise fallback to unsplash
+      destinationData = JSON.parse(generatedText);
       if (placeImages.length > 0) {
         destinationData.images = placeImages;
-      } else if (!destinationData.images || !Array.isArray(destinationData.images) || destinationData.images.length === 0) {
+      } else if (!destinationData.images?.length) {
         destinationData.images = [
           `https://source.unsplash.com/featured/?${encodeURIComponent(destination)},landmark`,
           `https://source.unsplash.com/featured/?${encodeURIComponent(destination)},travel`,
-          `https://source.unsplash.com/featured/?${encodeURIComponent(destination)},tourism`
         ];
       }
-      
     } catch (parseError) {
-      console.error("Error parsing Gemini response:", parseError);
-      
-      // Fallback structure
+      console.error("Error parsing response:", parseError);
       destinationData = {
         name: destination,
-        description: `Discover the wonders of ${destination}. This vibrant destination offers a mix of culture, adventure, and relaxation for every type of traveler.`,
-        highlights: [
-          {name: "Local attractions", description: "Experience the best sights this destination has to offer."},
-          {name: "Cultural experiences", description: "Immerse yourself in the local culture and traditions."},
-          {name: "Natural beauty", description: "Explore the stunning landscapes and natural wonders."},
-          {name: "Historical sites", description: "Discover the rich history and heritage of the region."},
-          {name: "Local markets", description: "Shop for souvenirs and taste local delicacies."}
-        ],
-        bestTimeToVisit: "Year-round, depending on your preferences for weather and crowds.",
-        localCuisine: [
-          {dish: "Local specialties", description: "Try the signature dishes of the region."},
-          {dish: "Traditional dishes", description: "Experience authentic flavors passed down through generations."},
-          {dish: "Street food", description: "Sample affordable and delicious local street food options."}
-        ],
-        travelTips: [
-          "Research local customs before visiting",
-          "Try the local cuisine",
-          "Learn a few phrases in the local language",
-          "Respect cultural norms and traditions"
-        ],
+        description: `Discover the wonders of ${destination}.`,
+        highlights: [{ name: "Local attractions", description: "Experience the best sights." }],
+        bestTimeToVisit: "Year-round.",
+        localCuisine: [{ dish: "Local specialties", description: "Try the signature dishes." }],
+        travelTips: ["Research local customs before visiting"],
         images: placeImages.length > 0 ? placeImages : [
           `https://source.unsplash.com/featured/?${encodeURIComponent(destination)},landmark`,
-          `https://source.unsplash.com/featured/?${encodeURIComponent(destination)},travel`,
-          `https://source.unsplash.com/featured/?${encodeURIComponent(destination)},tourism`
         ]
       };
     }
@@ -193,7 +127,7 @@ serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error) {
-    console.error("Error in generate-destination-info function:", error);
+    console.error("Error in generate-destination-info:", error);
     return new Response(
       JSON.stringify({ error: error.message }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
