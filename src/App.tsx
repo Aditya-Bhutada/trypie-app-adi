@@ -54,9 +54,7 @@ const App = () => {
     <TooltipProvider>
       <AuthProvider>
         <div className="flex flex-col min-h-screen overflow-x-hidden">
-          <div className="flex-1 flex flex-col overflow-y-auto">
-            <Outlet />
-          </div>
+          <Outlet />
           <Toaster />
           <SonnerToaster 
             position="bottom-right"

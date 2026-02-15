@@ -11,7 +11,7 @@ const mapProfile = (profile: any): Profile | undefined => {
     id: profile.id,
     fullName: profile.full_name || null,
     avatarUrl: profile.avatar_url || null,
-    email: profile.email || "", // Handle case where email might not be available
+    email: profile.email || "",
     createdAt: profile.created_at || new Date().toISOString(),
     bio: profile.bio || null,
     interests: profile.interests || null,
@@ -50,13 +50,9 @@ export async function fetchGroupMembers(groupId: string): Promise<GroupMember[]>
     }
   }
   
-  // Use the improved query with foreign key relationships
   const { data, error } = await supabase
-    .from('user_groups')
-    .select(`
-      *,
-      profile:profiles!user_groups_user_id_fkey(id, full_name, avatar_url, created_at, bio, interests, website_url, instagram_handle, twitter_handle)
-    `)
+    .from('group_members')
+    .select('*')
     .eq('group_id', groupId);
 
   if (error) {
@@ -64,19 +60,28 @@ export async function fetchGroupMembers(groupId: string): Promise<GroupMember[]>
     throw error;
   }
 
-  return data.map(member => ({
-    ...member,
-    profile: member.profile ? mapProfile(member.profile) : undefined
-  })) as GroupMember[];
+  // Fetch profiles separately
+  const membersWithProfiles = await Promise.all(data.map(async (member) => {
+    const { data: profileData } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', member.user_id)
+      .single();
+    
+    return {
+      ...member,
+      profile: profileData ? mapProfile(profileData) : undefined
+    } as GroupMember;
+  }));
+
+  return membersWithProfiles;
 }
 
-// Implementing the missing function fetchMemberDetails
 export async function fetchMemberDetails(userId: string, groupId: string): Promise<GroupMember | null> {
   if (!userId || !groupId) {
     return null;
   }
 
-  // For sample groups, return sample member
   if (groupId.startsWith('sample-')) {
     return {
       id: `sample-member-${groupId}-${userId}`,
@@ -94,13 +99,9 @@ export async function fetchMemberDetails(userId: string, groupId: string): Promi
     } as GroupMember;
   }
 
-  // Use the improved query with foreign key relationships
   const { data, error } = await supabase
-    .from('user_groups')
-    .select(`
-      *,
-      profile:profiles!user_groups_user_id_fkey(id, full_name, avatar_url, created_at, bio, interests, website_url, instagram_handle, twitter_handle)
-    `)
+    .from('group_members')
+    .select('*')
     .eq('group_id', groupId)
     .eq('user_id', userId)
     .maybeSingle();
@@ -113,14 +114,19 @@ export async function fetchMemberDetails(userId: string, groupId: string): Promi
   if (!data) {
     return null;
   }
+
+  const { data: profileData } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', data.user_id)
+    .single();
     
   return {
     ...data,
-    profile: data.profile ? mapProfile(data.profile) : undefined
+    profile: profileData ? mapProfile(profileData) : undefined
   } as GroupMember;
 }
 
-// Implementing the missing function inviteMember
 export async function inviteMember(groupId: string, email: string): Promise<{ success: boolean, message: string, inviteUrl?: string }> {
   if (groupId.startsWith('sample-')) {
     return { success: true, message: "Invitation sent (sample)" };
@@ -133,9 +139,8 @@ export async function inviteMember(groupId: string, email: string): Promise<{ su
       throw new Error("User is not authenticated");
     }
 
-    // Check if the user is an organizer or admin of the group
     const { data: userRole } = await supabase
-      .from('user_groups')
+      .from('group_members')
       .select('role')
       .eq('group_id', groupId)
       .eq('user_id', userData.user.id)
@@ -148,7 +153,6 @@ export async function inviteMember(groupId: string, email: string): Promise<{ su
       };
     }
 
-    // First, fetch the group name to include in the invitation
     const { data: groupData } = await supabase
       .from('travel_groups')
       .select('title')
@@ -159,7 +163,6 @@ export async function inviteMember(groupId: string, email: string): Promise<{ su
       return { success: false, message: "Group not found" };
     }
 
-    // Fetch inviter's name to personalize the invitation
     const { data: inviterData } = await supabase
       .from('profiles')
       .select('full_name')
@@ -169,7 +172,6 @@ export async function inviteMember(groupId: string, email: string): Promise<{ su
     const inviterName = inviterData?.full_name || "A Trypie user";
     const groupName = groupData.title;
 
-    // Call the edge function to send the invitation
     const { data, error } = await supabase.functions.invoke('send-invitation', {
       body: {
         email,
@@ -184,7 +186,6 @@ export async function inviteMember(groupId: string, email: string): Promise<{ su
       return { success: false, message: error.message || "Failed to send invitation" };
     }
 
-    // Extract the invite URL from the response
     const inviteUrl = data?.inviteUrl;
     const emailSent = data?.emailSent;
     const emailError = data?.emailError;
@@ -213,7 +214,6 @@ export async function inviteMember(groupId: string, email: string): Promise<{ su
   }
 }
 
-// Implementing the missing function removeMember
 export async function removeMember(groupId: string, userId: string): Promise<{ success: boolean, message: string }> {
   if (groupId.startsWith('sample-')) {
     return { success: true, message: "Member removed (sample)" };
@@ -226,13 +226,11 @@ export async function removeMember(groupId: string, userId: string): Promise<{ s
       throw new Error("User is not authenticated");
     }
 
-    // Check if current user is removing themselves
     const isSelf = currentUserData.user.id === userId;
 
-    // If not removing self, check if user has permission
     if (!isSelf) {
       const { data: userRole } = await supabase
-        .from('user_groups')
+        .from('group_members')
         .select('role')
         .eq('group_id', groupId)
         .eq('user_id', currentUserData.user.id)
@@ -246,7 +244,6 @@ export async function removeMember(groupId: string, userId: string): Promise<{ s
       }
     }
 
-    // Check if target is the group creator
     const { data: group } = await supabase
       .from('travel_groups')
       .select('creator_id')
@@ -260,9 +257,8 @@ export async function removeMember(groupId: string, userId: string): Promise<{ s
       };
     }
 
-    // Remove the member
     const { error } = await supabase
-      .from('user_groups')
+      .from('group_members')
       .delete()
       .eq('group_id', groupId)
       .eq('user_id', userId);

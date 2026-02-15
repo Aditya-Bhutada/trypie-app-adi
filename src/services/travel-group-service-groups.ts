@@ -180,7 +180,7 @@ export async function fetchMyGroups(): Promise<TravelGroup[]> {
   
   // Get all groups the user is a member of
   const { data: userGroups, error: userGroupsError } = await supabase
-    .from('user_groups')
+    .from('group_members')
     .select('group_id')
     .eq('user_id', userId);
 
@@ -220,7 +220,7 @@ export async function fetchMyGroups(): Promise<TravelGroup[]> {
     console.log("Processing group:", group.id);
     
     const { count, error: countError } = await supabase
-      .from('user_groups')
+      .from('group_members')
       .select('*', { count: 'exact', head: true })
       .eq('group_id', group.id);
     
@@ -266,7 +266,7 @@ export async function fetchInfluencerTrips(): Promise<TravelGroup[]> {
 
   const groupsWithDetails = await Promise.all(data.map(async (group) => {
     const { count, error: countError } = await supabase
-      .from('user_groups')
+      .from('group_members')
       .select('*', { count: 'exact', head: true })
       .eq('group_id', group.id);
     
@@ -303,7 +303,7 @@ export async function fetchExploreGroups(): Promise<TravelGroup[]> {
   }
   
   const { data: userGroups, error: userGroupsError } = await supabase
-    .from('user_groups')
+    .from('group_members')
     .select('group_id')
     .eq('user_id', userId);
 
@@ -315,7 +315,6 @@ export async function fetchExploreGroups(): Promise<TravelGroup[]> {
   const excludeIds = userGroups?.map(ug => ug.group_id) || [];
 
   try {
-    // If no groups to exclude, just get all public groups
     let query;
     if (excludeIds.length === 0) {
       query = supabase
@@ -323,7 +322,6 @@ export async function fetchExploreGroups(): Promise<TravelGroup[]> {
         .select('*')
         .eq('is_public', true);
     } else {
-      // Use a different approach to exclude the IDs
       query = supabase
         .from('travel_groups')
         .select('*')
@@ -343,7 +341,7 @@ export async function fetchExploreGroups(): Promise<TravelGroup[]> {
 
     const groupsWithDetails = await Promise.all(data.map(async (group) => {
       const { count, error: countError } = await supabase
-        .from('user_groups')
+        .from('group_members')
         .select('*', { count: 'exact', head: true })
         .eq('group_id', group.id);
       
@@ -398,7 +396,7 @@ export async function fetchGroupById(groupId: string): Promise<TravelGroup> {
   }
 
   const { count, error: countError } = await supabase
-    .from('user_groups')
+    .from('group_members')
     .select('*', { count: 'exact', head: true })
     .eq('group_id', groupId);
   
@@ -463,7 +461,7 @@ export async function createGroup(group: Omit<TravelGroup, 'id' | 'created_at' |
   }
 
   const { data: membershipCheck, error: membershipError } = await supabase
-    .from('user_groups')
+    .from('group_members')
     .select('*')
     .eq('user_id', userData.user.id)
     .eq('group_id', data.id);
@@ -502,7 +500,7 @@ export async function joinGroup(groupId: string): Promise<GroupMember> {
   console.log("Joining group:", groupId, "User:", userData.user.id);
   
   const { data: existingMembership, error: checkError } = await supabase
-    .from('user_groups')
+    .from('group_members')
     .select('*')
     .eq('user_id', userData.user.id)
     .eq('group_id', groupId)
@@ -526,7 +524,7 @@ export async function joinGroup(groupId: string): Promise<GroupMember> {
   }
   
   const { data, error } = await supabase
-    .from('user_groups')
+    .from('group_members')
     .insert({
       user_id: userData.user.id,
       group_id: groupId,
@@ -571,7 +569,7 @@ export async function leaveGroup(groupId: string): Promise<boolean> {
   }
   
   const { error } = await supabase
-    .from('user_groups')
+    .from('group_members')
     .delete()
     .match({
       user_id: userData.user.id,
@@ -589,7 +587,6 @@ export async function leaveGroup(groupId: string): Promise<boolean> {
 // Implementing the missing function updateGroup
 export async function updateGroup(groupId: string, updates: Partial<TravelGroup>): Promise<TravelGroup> {
   if (groupId.startsWith('sample-')) {
-    // Return a mocked response for sample groups
     const sampleGroup = groupId.startsWith('sample-influencer-')
       ? sampleInfluencerTrips.find(group => group.id === groupId)
       : sampleExploreGroups.find(group => group.id === groupId);
@@ -610,7 +607,6 @@ export async function updateGroup(groupId: string, updates: Partial<TravelGroup>
     throw new Error("User is not authenticated");
   }
   
-  // Check if user has permission to update the group
   const { data: group } = await supabase
     .from('travel_groups')
     .select('creator_id')
@@ -623,7 +619,7 @@ export async function updateGroup(groupId: string, updates: Partial<TravelGroup>
   
   if (group.creator_id !== userData.user.id) {
     const { data: membership } = await supabase
-      .from('user_groups')
+      .from('group_members')
       .select('role')
       .eq('group_id', groupId)
       .eq('user_id', userData.user.id)
@@ -634,7 +630,6 @@ export async function updateGroup(groupId: string, updates: Partial<TravelGroup>
     }
   }
   
-  // Fields that are allowed to be updated
   const allowedUpdates = {
     title: updates.title,
     description: updates.description,
@@ -646,7 +641,6 @@ export async function updateGroup(groupId: string, updates: Partial<TravelGroup>
     image_url: updates.image_url
   };
   
-  // Filter out undefined values
   const filteredUpdates = Object.fromEntries(
     Object.entries(allowedUpdates).filter(([_, v]) => v !== undefined)
   );
@@ -663,6 +657,5 @@ export async function updateGroup(groupId: string, updates: Partial<TravelGroup>
     throw error;
   }
   
-  // Fetch the updated group with organizer details
   return fetchGroupById(groupId);
 }

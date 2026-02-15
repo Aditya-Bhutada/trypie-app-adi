@@ -24,19 +24,15 @@ export async function fetchMessages(groupId: string): Promise<GroupMessage[]> {
   // For sample groups, check if we have real messages first
   if (groupId.startsWith('sample-')) {
     try {
-      // Try to fetch real messages first (in case they were added after joining)
       const { data, error } = await supabase
-        .from('group_chat_messages')
-        .select(`
-          *
-        `)
+        .from('group_messages')
+        .select('*')
         .eq('group_id', groupId)
         .order('created_at', { ascending: true });
         
       if (!error && data && data.length > 0) {
         console.log("Found existing messages for sample group:", data.length);
         
-        // Process these messages normally
         const messagesWithProfiles = await Promise.all(data.map(async (message) => {
           const { data: profileData, error: profileError } = await supabase
             .from('profiles')
@@ -56,7 +52,6 @@ export async function fetchMessages(groupId: string): Promise<GroupMessage[]> {
 
         return messagesWithProfiles;
       } else {
-        // No real messages yet, return empty array
         console.log("No messages found for sample group, returning empty array");
         return [];
       }
@@ -68,10 +63,8 @@ export async function fetchMessages(groupId: string): Promise<GroupMessage[]> {
   
   // Standard message fetching for real groups
   const { data, error } = await supabase
-    .from('group_chat_messages')
-    .select(`
-      *
-    `)
+    .from('group_messages')
+    .select('*')
     .eq('group_id', groupId)
     .order('created_at', { ascending: true });
 
@@ -101,7 +94,6 @@ export async function fetchMessages(groupId: string): Promise<GroupMessage[]> {
 }
 
 export async function sendMessage(groupId: string, message: string, mediaUrl?: string): Promise<GroupMessage> {
-  // Validate inputs
   if (!groupId) {
     throw new Error("Group ID is required");
   }
@@ -116,45 +108,8 @@ export async function sendMessage(groupId: string, message: string, mediaUrl?: s
     throw new Error("User is not authenticated");
   }
   
-  // Special handling for sample group IDs to make them work like real groups
-  if (groupId.startsWith('sample-')) {
-    try {
-      // For sample groups, we actually insert into the real table
-      const { data, error } = await supabase
-        .from('group_chat_messages')
-        .insert({
-          group_id: groupId, // Keep the sample ID as is
-          user_id: userData.user.id,
-          message,
-          media_url: mediaUrl
-        })
-        .select()
-        .single();
-    
-      if (error) {
-        console.error("Error sending message to sample group:", error);
-        throw error;
-      }
-      
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userData.user.id)
-        .single();
-    
-      return {
-        ...data,
-        senderProfile: profileData ? mapProfile(profileData) : undefined
-      } as GroupMessage;
-    } catch (error) {
-      console.error("Error sending message to sample group:", error);
-      throw error;
-    }
-  }
-  
-  // Normal flow for real groups
   const { data, error } = await supabase
-    .from('group_chat_messages')
+    .from('group_messages')
     .insert({
       group_id: groupId,
       user_id: userData.user.id,
@@ -189,7 +144,6 @@ export function subscribeToGroupMessages(groupId: string, callback: (message: Gr
     };
   }
   
-  // Even for sample groups, we subscribe to real-time updates
   return supabase
     .channel(`group-messages-${groupId}`)
     .on(
@@ -197,7 +151,7 @@ export function subscribeToGroupMessages(groupId: string, callback: (message: Gr
       {
         event: 'INSERT',
         schema: 'public',
-        table: 'group_chat_messages',
+        table: 'group_messages',
         filter: `group_id=eq.${groupId}`
       },
       async (payload) => {
@@ -226,7 +180,6 @@ export function subscribeToGroupChanges(groupId: string, callback: () => void) {
     };
   }
   
-  // Even for sample groups, we subscribe to real-time updates
   return supabase
     .channel(`group-changes-${groupId}`)
     .on(
@@ -244,7 +197,7 @@ export function subscribeToGroupChanges(groupId: string, callback: () => void) {
       {
         event: '*',
         schema: 'public',
-        table: 'user_groups',
+        table: 'group_members',
         filter: `group_id=eq.${groupId}`
       },
       () => callback()
